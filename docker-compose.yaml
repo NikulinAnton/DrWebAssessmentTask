@@ -1,0 +1,13 @@
+version: '3'
+services:
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=webdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_MULTIPLE_EXTENSIONS=citext,
+      - TZ=Europe/Moscow
+    ports:
+      - "5431:5432"
