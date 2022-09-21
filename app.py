@@ -1,4 +1,6 @@
+import hashlib
 import os
+from typing import Optional
 
 from dotenv import load_dotenv
 from flask import Flask, request, send_file
@@ -35,7 +37,7 @@ class User(db.Model):
 class File(db.Model):
     __tablename__ = "files"
     id = db.Column(db.Integer(), primary_key=True)
-    file_name = db.Column(db.String(150), nullable=False)
+    file_name = db.Column(db.String(128), nullable=False)
     owner_id = db.Column(db.Integer(), db.ForeignKey("users.id"), nullable=False)
 
     def __init__(self, file_name, owner_id):
@@ -47,11 +49,17 @@ class File(db.Model):
 
 
 @auth.verify_password
-def verify_password(username, password):
+def verify_password(username: str, password: str) -> Optional[str]:
     user = User.query.filter_by(username=username).first()
     if user and check_password_hash(user.password, password):
         return username
     return None
+
+
+def sha512_hasher(file_data: bytes) -> str:
+    hasher = hashlib.sha512()
+    hasher.update(file_data)
+    return hasher.hexdigest()
 
 
 @app.route("/upload", methods=["POST"])
@@ -64,7 +72,8 @@ def upload_file():
     if file.filename == "":
         return "File doesn't selected", 400
 
-    file_name = file.filename
+    file_data = file.read()
+    file_name = sha512_hasher(file_data)
     file_path = os.path.join(BASE_DIR, UPLOAD_FOLDER, file_name[0:2])
     if not os.path.exists(file_path):
         os.mkdir(file_path)
