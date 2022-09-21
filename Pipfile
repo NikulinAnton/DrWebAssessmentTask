@@ -6,10 +6,12 @@ name = "pypi"
 [packages]
 flask = "*"
 flask_sqlalchemy = "*"
+psycopg2-binary = "*"
 black = "*"
 isort = "*"
 pre-commit = "*"
 python-dotenv = "*"
+flask_httpauth ="*"
 
 [dev-packages]
 
