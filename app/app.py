@@ -2,50 +2,26 @@ import hashlib
 import os
 from typing import Optional
 
-from dotenv import load_dotenv
+import database
 from flask import Flask, request, send_file
 from flask_httpauth import HTTPBasicAuth
-from flask_sqlalchemy import SQLAlchemy
+from models import File, User, db
 from werkzeug.security import check_password_hash, generate_password_hash
 
-load_dotenv()
 UPLOAD_FOLDER = "store"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 auth = HTTPBasicAuth()
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
+app.config.from_object("config.Config")
+database.init_app(app)
 
 
-class User(db.Model):
-    __tablename__ = "users"
-    id = db.Column(db.Integer(), primary_key=True)
-    username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(150), nullable=False)
-    files = db.relationship("File", backref="files")
-
-    def __init__(self, username, password):
-        self.username = username
-        self.password = generate_password_hash(password)
-
-    def __repr__(self):
-        return f"{self.id}: {self.username}"
-
-
-class File(db.Model):
-    __tablename__ = "files"
-    id = db.Column(db.Integer(), primary_key=True)
-    file_name = db.Column(db.String(128), nullable=False)
-    owner_id = db.Column(db.Integer(), db.ForeignKey("users.id"), nullable=False)
-
-    def __init__(self, file_name, owner_id):
-        self.file_name = file_name
-        self.owner_id = owner_id
-
-    def __repr__(self):
-        return f"{self.id}: {self.file_name}"
+@app.before_first_request
+def create_test_user():
+    test_user = User(username="test", password="test")
+    db.session.add(test_user)
+    db.session.commit()
 
 
 @auth.verify_password
@@ -73,14 +49,16 @@ def upload_file():
         return "File doesn't selected", 400
 
     file_data = file.read()
-    file_name = sha512_hasher(file_data)
+    file_name = sha512_hasher(file_data) + os.path.splitext(file.filename)[1]
     file_path = os.path.join(BASE_DIR, UPLOAD_FOLDER, file_name[0:2])
     if not os.path.exists(file_path):
         os.mkdir(file_path)
     elif os.path.exists(os.path.join(file_path, file_name)):
         return "File with such name already exists", 400
 
-    file.save(os.path.join(os.path.join(file_path, file_name)))
+    with open(os.path.join(file_path, file_name), "wb") as file_to_write:
+        file_to_write.write(file_data)
+
     user = User.query.filter_by(username=auth.username()).first()
     db.session.add(File(file_name=file_name, owner_id=user.id))
     db.session.commit()
@@ -114,4 +92,4 @@ def delete_file():
 
 
 if __name__ == "__main__":
-    app.run(debug=os.getenv("DEBUG"))
+    app.run()
